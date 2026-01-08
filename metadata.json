@@ -1,0 +1,7 @@
+{
+  "name": "Exam Helper App",
+  "description": "An intelligent exam paper analysis engine that organizes PYQs into high-yield revision sections, identifying repeated questions and top-scoring topics.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
