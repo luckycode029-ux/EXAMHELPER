@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type, GenerateContentParameters } from "@google/genai";
 import { AnalysisResult, FileData } from "./types";
 
@@ -20,26 +21,32 @@ STRICT OUTPUT STRUCTURE (JSON):
 `;
 
 export const analyzePapers = async (files: FileData[]): Promise<AnalysisResult> => {
-  // Fix: Initializing GoogleGenAI with named parameter and direct process.env.API_KEY as per guidelines
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    throw new Error("API_KEY is missing. Please set it in your Netlify Environment Variables.");
+  }
 
-  const parts: any[] = files.map(file => ({
-    inlineData: {
-      data: file.data.split(',')[1] || file.data,
-      mimeType: file.type
-    }
-  }));
+  const ai = new GoogleGenAI({ apiKey });
+
+  const parts: any[] = files.map(file => {
+    const base64Data = file.data.includes(',') ? file.data.split(',')[1] : file.data;
+    return {
+      inlineData: {
+        data: base64Data,
+        mimeType: file.type
+      }
+    };
+  });
 
   parts.push({
-    text: "Analyze these PYQs and provide a structured exam-oriented summary as defined in the system instructions. Be concise and ruthless about relevance."
+    text: "Analyze these PYQs and provide a structured exam-oriented summary as defined in the system instructions. Focus on high-yield patterns."
   });
 
   const config: GenerateContentParameters = {
-    model: 'gemini-3-pro-preview',
-    contents: { parts },
+    model: 'gemini-3-flash-preview',
+    contents: [{ parts }],
     config: {
       systemInstruction: SYSTEM_INSTRUCTION,
-      thinkingConfig: { thinkingBudget: 32768 },
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
@@ -81,8 +88,13 @@ export const analyzePapers = async (files: FileData[]): Promise<AnalysisResult> 
     }
   };
 
-  const response = await ai.models.generateContent(config);
-  // Fix: Access .text property directly as it is not a method
-  const text = response.text || "{}";
-  return JSON.parse(text) as AnalysisResult;
+  try {
+    const result = await ai.models.generateContent(config);
+    const text = result.text;
+    if (!text) throw new Error("No response from AI engine.");
+    return JSON.parse(text) as AnalysisResult;
+  } catch (err: any) {
+    console.error("Gemini Analysis Error:", err);
+    throw err;
+  }
 };
